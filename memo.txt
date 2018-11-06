@@ -1,0 +1,26 @@
+train_dataset:
+Dataset MNIST
+    Number of datapoints: 60000
+    Split: train
+    Root Location: ../data/
+    Transforms (if any): ToTensor()
+    Target Transforms (if any): None
+
+test_dataset:
+Dataset MNIST
+    Number of datapoints: 10000
+    Split: test
+    Root Location: ../data/
+    Transforms (if any): ToTensor()
+    Target Transforms (if any): None
+
+train_loader:
+<torch.utils.data.dataloader.DataLoader object at 0x7fa30e63cb38>
+
+test_loader:
+<torch.utils.data.dataloader.DataLoader object at 0x7fa30e63c550>
+
+images
+type:<class 'torch.Tensor'>, size:torch.Size([100, 1, 28, 28])
+labels
+type:<class 'torch.Tensor'>, size:torch.Size([100])
