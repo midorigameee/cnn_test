@@ -18,17 +18,11 @@ import torchvision.transforms as transforms
 
 import os
 import cv2
-import numpy
+import numpy as np
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print("device:", device)
-
-# Hyper parameters
-num_epochs = 5
-num_classes = 10
-batch_size = 10
-learning_rate = 0.001
 
 
 """
@@ -61,58 +55,6 @@ print("train_dataset.landmarks:\n{}\n" .format(train_dataset.landmarks))
 """
 
 
-# dataset_dirは以下のような構造を持つディレクトリであること
-#
-# ../dataset_dir
-#   |- classA
-#       |- imageA
-#       |- imageB
-#       ...
-#   |- classB
-#   ...
-#   |- classX
-#
-# datasetは正解ラベル
-def makeDataset(dataset_dir, color_type=cv2.IMREAD_GRAYSCALE):
-    # 分類したいクラスをリスト化
-    class_list = sort(os.listdir(dataset_dir))
-    class_num = len(class_list)
-
-    # data_x, data_yはそれぞれ学習データと教師データ
-    #   data_yはone-hotベクトル
-    # labelはインデックスに対応するラベル名
-    data_x = []
-    data_y = []
-    label = []
-
-    for class_idx, class_name in enumrate(class_list):
-        # クラス内にある全データをリスト化
-        class_path = os.path.join(dataset_dir, class_name)
-        image_list = os.listdir(class_path)
-
-        # クラス名を保存
-        label.append(class_name)
-
-        for image_name in image_list:
-            # 画像の読み込み
-            image_path = os.path.join(class_path, image_name)
-            image_data = cv2.imread(image_path, color_type)
-
-            # 画像をリストに追加
-            data_x.append(image_data)
-
-            # 教師データを作成し、リストに追加
-            supervisor = np.zeros(class_num)
-            supervisor[class_idx] = 1
-            data_y.append(supervisor)
-
-
-    # データセットをlistからnumpyに変換
-    data_x = np.array(data_x, dtype="float32")
-    data_y = np.array(data_y, dtype="int32")
-
-    return data_x, data_y, labe
-
 """
 # https://qiita.com/sheep96/items/0c2c8216d566f58882aa
 class MyDataset(Dataset):
@@ -144,6 +86,12 @@ class MyDataset(Dataset):
         return image, label
 """
 
+# Hyper parameters
+num_epochs = 50
+num_classes = 4
+BATCH_SIZE = 10
+LEARNING_RATE = 0.001
+
 
 # Convolutional neural network (two convolutional layers)
 class ConvNet(nn.Module):
@@ -169,14 +117,76 @@ class ConvNet(nn.Module):
         return out
 
 
-dataset_dir = "../training_data_32"
+# dataset_dirは以下のような構造を持つディレクトリであること
+#
+# ../dataset_dir
+#   |- classA
+#       |- imageA
+#       |- imageB
+#       ...
+#   |- classB
+#   ...
+#   |- classX
+#
+# datasetは正解ラベル
+def makeDataset(dataset_dir, color_type=cv2.IMREAD_GRAYSCALE):
+    # 分類したいクラスをリスト化
+    print("dataset_dir: ", dataset_dir)
+    class_list = os.listdir(dataset_dir)
+    class_list.sort()
+    print("class_list: ", class_list)
+    class_num = len(class_list)
+
+    # data_x, data_yはそれぞれ学習データと教師データ
+    #   data_yはone-hotベクトル
+    # labelはインデックスに対応するラベル名
+    data_x = []
+    data_y = []
+    label = []
+
+    for class_idx, class_name in enumerate(class_list):
+        # クラス内にある全データをリスト化
+        class_path = os.path.join(dataset_dir, class_name)
+        image_list = os.listdir(class_path)
+
+        # クラス名を保存
+        label.append(class_name)
+
+        for image_name in image_list:
+            # 画像の読み込み
+            image_path = os.path.join(class_path, image_name)
+            image_data = cv2.imread(image_path, color_type)
+
+            # 画像をリストに追加
+            data_x.append(image_data)
+
+            # 教師データを作成し、リストに追加
+            supervisor = np.zeros(class_num)
+            supervisor[class_idx] = 1
+            data_y.append(supervisor)
+
+
+    # データセットをlistからnumpyに変換
+    data_x = np.array(data_x, dtype="float32")
+    data_y = np.array(data_y, dtype="int32")
+
+    return data_x, data_y, label
+
+
+# データセットを作成しTensor化
+dataset_dir = "..\\training_data_32"
 train_x, train_y, label = makeDataset(dataset_dir)
+train_x = torch.from_numpy(train_x)
+train_y = torch.from_numpy(train_y)
 
+# DataLoader化
+train = torch.utils.data.TensorDataset(train_x, train_y)
+train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
+
+# モデル、損失関数、最適化関数の定義
 model = ConvNet(num_classes).to(device)
-
-# Loss and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # Train the model
 total_step = len(train_loader)
@@ -199,7 +209,7 @@ for epoch in range(num_epochs):
         if (i+1) % 100 == 0:
             print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
                    .format(epoch+1, num_epochs, i+1, total_step, loss.item()))
-
+"""
 # Test the model
 model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
 with torch.no_grad():
@@ -214,6 +224,7 @@ with torch.no_grad():
         correct += (predicted == labels).sum().item()
 
     print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
+"""
 
 # Save the model checkpoint
 torch.save(model.state_dict(), 'model.ckpt')
