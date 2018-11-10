@@ -14,10 +14,12 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 import torchvision
-from torchvision import transforms, datasets
+import torchvision.transforms as transforms
 
 import os
+import cv2
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 
 # Device configuration
@@ -124,21 +126,89 @@ class MultiLayerPerceptron(nn.Module):
         out = self.softmax(out)
         return out
 
+# dataset_dirは以下のような構造を持つディレクトリであること
+#
+# ../dataset_dir
+#   |- classA
+#       |- imageA
+#       |- imageB
+#       ...
+#   |- classB
+#       |- imageX
+#       |- imageY
+#       ...
+#   ...
+#
+# 現在は全て画像サイズが同じRGB画像を想定したデータセット作成関数
+# グレースケールも無理やりRGB画像として読み込む仕様
+def makeDataset(dataset_dir):
+    # 分類したいクラスをリスト化
+    class_list = os.listdir(dataset_dir)
+    class_list.sort()
+    class_num = len(class_list)
 
-# 取り込んだデータに施す処理を指定
-data_transform = transforms.Compose([
-        transforms.Resize(IMAGE_SIZE),
-        transforms.ToTensor(),
-    ])
+    # data_x, data_yはそれぞれ学習データと教師データ
+    #   data_yはone-hotベクトル
+    # labelはインデックスに対応するラベル名
+    data_x = []
+    data_y = []
+    label = []
 
-# データセットの読み込み
-train = datasets.ImageFolder(root='..\\training_data_ImageFolder\\train',
-                             transform=data_transform)
-test = datasets.ImageFolder(root='..\\training_data_ImageFolder\\train',
-                             transform=data_transform)
+    for class_idx, class_name in enumerate(class_list):
+        # クラス内にある全データをリスト化
+        class_path = os.path.join(dataset_dir, class_name)
+        image_list = os.listdir(class_path)
+
+        # クラス名を保存
+        label.append(class_name)
+
+        for image_name in image_list:
+            # 画像の読み込み
+            image_path = os.path.join(class_path, image_name)
+            image_data = cv2.imread(image_path, cv2.IMREAD_COLOR)
+
+            # (縦, 横, チャンネル)を(チャンネル, 縦, 横)に変換
+            # CNNで学習させる場合はこちらの方が使いやすいため
+            # 通常のMLPの際は1次元にするためどちらでも問題ない
+            image_data = np.transpose(image_data, (2, 0, 1))
+
+            # 画像をリストに追加
+            data_x.append(image_data)
+
+            # one-hot表現の教師データを作成し、リストに追加
+            supervisor = np.zeros(class_num)
+            supervisor[class_idx] = 1
+            data_y.append(supervisor)
+
+    # データセットをlistからnumpyに変換
+    data_x = np.array(data_x, dtype="float32")
+    data_y = np.array(data_y, dtype="int32")
+
+    # 訓練用とテスト用に分割
+    train_x, test_x, train_y, test_y = train_test_split(
+            data_x, data_y, test_size=1/5, random_state=0)
+
+    return train_x, test_x, train_y, test_y, label
+
+
+# データセットを作成しTensor化
+dataset_dir = "..\\training_data_64"
+# dataset_dir = "..\\training_data_32"
+train_x, test_x, train_y, test_y, label = makeDataset(dataset_dir)
+train_x = torch.from_numpy(train_x)     # torch.Tensorでも大丈夫
+train_y = torch.from_numpy(train_y)     # torch.LongTensorでも大丈夫
+test_x = torch.from_numpy(test_x)
+test_y = torch.from_numpy(test_y)
+
+# labelを保存
+with open("..\\label.txt", "w") as list:
+    for l in label:
+        list.write(str(l) + "\n")
 
 # DataLoader化
+train = torch.utils.data.TensorDataset(train_x, train_y)
 train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
+test = torch.utils.data.TensorDataset(test_x, test_y)
 test_loader = torch.utils.data.DataLoader(test, batch_size=BATCH_SIZE, shuffle=False)
 
 # モデル、損失関数、最適化関数の定義
@@ -156,7 +226,7 @@ for epoch in range(NUM_EPOCHS):
 
         # Forward pass
         outputs = model(images)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs, torch.max(labels, 1)[1])
 
         # Backward and optimize
         optimizer.zero_grad()
@@ -166,6 +236,7 @@ for epoch in range(NUM_EPOCHS):
         if (i+1) % 5 == 0:
             print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
                    .format(epoch+1, NUM_EPOCHS, i+1, total_step, loss.item()))
+
 
 # Test the model
 model.eval()  # ネットワークを推論モードに切り替える
@@ -179,7 +250,7 @@ with torch.no_grad():   # 推論中は勾配の保存を止める（メモリの
         outputs = model(images)
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        correct += (predicted == torch.max(labels, 1)[1]).sum().item()
 
     print('Test Accuracy: {} %' .format(100 * correct / total))
 
