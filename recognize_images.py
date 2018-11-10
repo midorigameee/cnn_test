@@ -12,14 +12,12 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 import torchvision
-import torchvision.transforms as transforms
+from torchvision import transforms, datasets
 from torch.autograd import Variable
 
 import os
-import cv2
 import numpy as np
-from sklearn.model_selection import train_test_split
-
+import cv2
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -28,7 +26,7 @@ print("device:", device)
 # Hyper parameters
 NUM_EPOCHS = 50
 NUM_CLASSES = 4
-IMAGE_SIZE = 32
+IMAGE_SIZE = 64
 HIDDEN_SIZE = 512
 BATCH_SIZE = 10
 LEARNING_RATE = 0.001
@@ -125,7 +123,6 @@ class MultiLayerPerceptron(nn.Module):
         out = self.softmax(out)
         return out
 
-
 # 対象画像のロード
 target_dir = "..\\target_images"
 target_list = os.listdir(target_dir)
@@ -135,6 +132,7 @@ target = []
 for target_name in target_list:
     target_path = class_path = os.path.join(target_dir, target_name)
     target_data = cv2.imread(target_path, cv2.IMREAD_COLOR)
+    target_data = cv2.resize(target_data, (IMAGE_SIZE, IMAGE_SIZE))
     target_data = np.transpose(target_data, (2, 0, 1))
     target.append(target_data)
 
@@ -161,6 +159,6 @@ with torch.no_grad():   # 推論中は勾配の保存を止める（メモリの
         outputs = model(x)
         _, predicted = torch.max(outputs.data, 1)
 
-        answer = label[predicted]
+        answer = predicted[0]
 
         print("{} : {}" .format(target_list[idx], answer))

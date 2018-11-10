@@ -26,7 +26,7 @@ print("device:", device)
 
 # Hyper parameters
 NUM_EPOCHS = 50
-NUM_CLASSES = 4
+NUM_CLASSES = 6
 IMAGE_SIZE = 64
 HIDDEN_SIZE = 512
 BATCH_SIZE = 10
