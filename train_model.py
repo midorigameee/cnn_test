@@ -159,6 +159,11 @@ train_y = torch.from_numpy(train_y)     # torch.LongTensorでも大丈夫
 test_x = torch.from_numpy(test_x)
 test_y = torch.from_numpy(test_y)
 
+# labelを保存
+with open("..\\label.txt", "w") as list:
+    for l in label:
+        list.write(str(l) + "\n")
+
 # DataLoader化
 train = torch.utils.data.TensorDataset(train_x, train_y)
 train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
