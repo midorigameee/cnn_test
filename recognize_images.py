@@ -24,12 +24,10 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print("device:", device)
 
 # Hyper parameters
-NUM_EPOCHS = 50
 NUM_CLASSES = 4
 IMAGE_SIZE = 64
 HIDDEN_SIZE = 512
 BATCH_SIZE = 10
-LEARNING_RATE = 0.001
 
 
 # CNN
@@ -80,7 +78,7 @@ class CNN_64(nn.Module):
         self.fc1 = nn.Linear(32 * 5 * 5, 400)
         self.fc2 = nn.Linear(400, 120)
         self.fc3 = nn.Linear(120, 84)
-        self.fc4 = nn.Linear(84, 4)
+        self.fc4 = nn.Linear(84, NUM_CLASSES)
         self.relu = nn.ReLU()
 
     def forward(self, x):

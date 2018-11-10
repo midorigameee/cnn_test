@@ -25,7 +25,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print("device:", device)
 
 # Hyper parameters
-NUM_EPOCHS = 50
+NUM_EPOCHS = 100
 NUM_CLASSES = 6
 IMAGE_SIZE = 64
 HIDDEN_SIZE = 512
@@ -81,7 +81,7 @@ class CNN_64(nn.Module):
         self.fc1 = nn.Linear(32 * 5 * 5, 400)
         self.fc2 = nn.Linear(400, 120)
         self.fc3 = nn.Linear(120, 84)
-        self.fc4 = nn.Linear(84, 4)
+        self.fc4 = nn.Linear(84, NUM_CLASSES)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -132,9 +132,9 @@ data_transform = transforms.Compose([
     ])
 
 # データセットの読み込み
-train = datasets.ImageFolder(root='..\\training_data_ImageFolder\\train',
+train = datasets.ImageFolder(root='..\\actress\\train',
                              transform=data_transform)
-test = datasets.ImageFolder(root='..\\training_data_ImageFolder\\train',
+test = datasets.ImageFolder(root='..\\actress\\test',
                              transform=data_transform)
 
 # DataLoader化
