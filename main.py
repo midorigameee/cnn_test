@@ -19,76 +19,18 @@ import torchvision.transforms as transforms
 import os
 import cv2
 import numpy as np
+from sklearn.model_selection import train_test_split
+
 
 # Device configuration
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print("device:", device)
 
-
-"""
-# MNIST dataset
-train_dataset = torchvision.datasets.MNIST(root='../data/',
-                                           train=True,
-                                           transform=transforms.ToTensor(),
-                                           download=True)
-
-test_dataset = torchvision.datasets.MNIST(root='../data/',
-                                          train=False,
-                                          transform=transforms.ToTensor())
-
-# Data loader
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                           batch_size=batch_size,
-                                           shuffle=True)
-
-test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-                                          batch_size=batch_size,
-                                          shuffle=False)
-
-
-print("train_dataset.image:\n{}\n" .format(train_dataset.image))
-print("train_dataset.landmarks:\n{}\n" .format(train_dataset.landmarks))
-# print("train_dataset:\n{}\n" .format(train_dataset))
-# print("test_dataset:\n{}\n" .format(test_dataset))
-# print("train_loader:\n{}\n" .format(train_loader))
-# print("test_loader:\n{}\n" .format(test_loader))
-"""
-
-
-"""
-# https://qiita.com/sheep96/items/0c2c8216d566f58882aa
-class MyDataset(Dataset):
-    def __init__(self, dataset_dir, root_dir, transform=None):
-        # 学習データのパス設定
-        self.dataset_dir = dataset_dir
-        self.root_dir = root_dir
-        # 画像データへの処理
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.image_dataframe)
-
-    def __getitem__(self, idx):
-        # qaa
-        label_list = os.listdir(dataset_dir)
-
-
-        # dataframeから画像へのパスとラベルを読み出す
-        label = self.image_dataframe.iat[idx, LABEL_IDX]
-        img_name = os.path.join(self.root_dir, 'classification-of-handwritten-letters',
-                'letters2', self.image_dataframe.iat[idx, IMG_IDX])
-        # 画像の読み込み
-        image = io.imread(img_name)
-        # 画像へ処理を加える
-        if self.transform:
-            image = self.transform(image)
-
-        return image, label
-"""
-
 # Hyper parameters
-num_epochs = 50
-num_classes = 4
+NUM_EPOCHS = 50
+NUM_CLASSES = 4
+IMAGE_SIZE = 32
+HIDDEN_SIZE = 500
 BATCH_SIZE = 10
 LEARNING_RATE = 0.001
 
@@ -117,6 +59,28 @@ class ConvNet(nn.Module):
         return out
 
 
+class MultiLayerPerceptron(nn.Module):
+
+    def __init__(self, image_size, hidden_size, num_classes):
+        super(MultiLayerPerceptron, self).__init__()
+        # ハイパーパラメータ
+        self.image_size = image_size
+        self.input_size = image_size * image_size
+        self.hidden_size = hidden_size
+        self.num_classes = num_classes
+
+        # ネットワーク構造
+        self.fc1 = nn.Linear(self.input_size, self.hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(self.hidden_size, self.num_classes)
+
+    def forward(self, x):
+        x = x.view(-1, self.image_size * self.image_size)
+        out = self.fc1(x)
+        out = self.relu(out)
+        out = self.fc2(out)
+        return out
+
 # dataset_dirは以下のような構造を持つディレクトリであること
 #
 # ../dataset_dir
@@ -125,16 +89,15 @@ class ConvNet(nn.Module):
 #       |- imageB
 #       ...
 #   |- classB
+#       |- imageX
+#       |- imageY
+#       ...
 #   ...
-#   |- classX
 #
-# datasetは正解ラベル
 def makeDataset(dataset_dir, color_type=cv2.IMREAD_GRAYSCALE):
     # 分類したいクラスをリスト化
-    print("dataset_dir: ", dataset_dir)
     class_list = os.listdir(dataset_dir)
     class_list.sort()
-    print("class_list: ", class_list)
     class_num = len(class_list)
 
     # data_x, data_yはそれぞれ学習データと教師データ
@@ -158,11 +121,12 @@ def makeDataset(dataset_dir, color_type=cv2.IMREAD_GRAYSCALE):
             image_data = cv2.imread(image_path, color_type)
 
             # 画像をリストに追加
-            data_x.append(image_data)
+            data_x.append([image_data])
 
             # 教師データを作成し、リストに追加
             supervisor = np.zeros(class_num)
             supervisor[class_idx] = 1
+            # supervisor = class_idx
             data_y.append(supervisor)
 
 
@@ -170,46 +134,52 @@ def makeDataset(dataset_dir, color_type=cv2.IMREAD_GRAYSCALE):
     data_x = np.array(data_x, dtype="float32")
     data_y = np.array(data_y, dtype="int32")
 
-    return data_x, data_y, label
+    # 訓練用とテスト用に分割
+    x_train, x_test, y_train, y_test = train_test_split(
+            data_x, data_y, test_size=1/5, random_state=0)
+
+    return x_train, x_test, y_train, y_test, label
 
 
 # データセットを作成しTensor化
 dataset_dir = "..\\training_data_32"
-train_x, train_y, label = makeDataset(dataset_dir)
-train_x = torch.from_numpy(train_x)
-train_y = torch.from_numpy(train_y)
+train_x, test_x, train_y, test_y, label = makeDataset(dataset_dir)
+train_x = torch.from_numpy(train_x)     # torch.Tensorでも大丈夫
+train_y = torch.from_numpy(train_y)     # torch.LongTensorでも大丈夫
+test_x = torch.from_numpy(test_x)
+test_y = torch.from_numpy(test_y)
 
 # DataLoader化
 train = torch.utils.data.TensorDataset(train_x, train_y)
 train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
+test = torch.utils.data.TensorDataset(test_x, test_y)
+test_loader = torch.utils.data.DataLoader(test, batch_size=BATCH_SIZE, shuffle=False)
 
 # モデル、損失関数、最適化関数の定義
-model = ConvNet(num_classes).to(device)
+model = MultiLayerPerceptron(IMAGE_SIZE, HIDDEN_SIZE, NUM_CLASSES).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # Train the model
 total_step = len(train_loader)
-for epoch in range(num_epochs):
+for epoch in range(NUM_EPOCHS):
     for i, (images, labels) in enumerate(train_loader):
-        # print("images\ntype:{}, size:{}" .format(type(images), images.size()))
-        # print("labels\ntype:{}, size:{}" .format(type(labels), labels.size()))
         images = images.to(device)
         labels = labels.to(device)
 
         # Forward pass
         outputs = model(images)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs, torch.max(labels, 1)[1])
 
         # Backward and optimize
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        if (i+1) % 100 == 0:
+        if (i+1) % 5 == 0:
             print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
-                   .format(epoch+1, num_epochs, i+1, total_step, loss.item()))
-"""
+                   .format(epoch+1, NUM_EPOCHS, i+1, total_step, loss.item()))
+
 # Test the model
 model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
 with torch.no_grad():
@@ -221,10 +191,10 @@ with torch.no_grad():
         outputs = model(images)
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        correct += (predicted == torch.max(labels, 1)[1]).sum().item() # default labels
 
     print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
-"""
+
 
 # Save the model checkpoint
 torch.save(model.state_dict(), 'model.ckpt')
