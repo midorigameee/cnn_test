@@ -57,6 +57,46 @@ class CNN(nn.Module):
         x = self.fc3(x)
         return x
 
+
+"""
+(3, 64, 64)
+conv1(3, 6, 5)   => (6, 60, 60)
+pool1(2, 2)      => (6, 30, 30)
+conv2(6, 16, 5)  => (16, 26, 26)
+pool2(2, 2)      => (16, 13, 13)
+conv3(16, 32, 4) => (32, 10, 10)
+pool2(2, 2)      => (32, 5, 5)
+
+32 * 5 * 5 = 800 => 400
+400 => 120
+120 => 84
+84 => 4
+"""
+class CNN_64(nn.Module):
+    def __init__(self):
+        super(CNN_64, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.conv3 = nn.Conv2d(16, 32, 4)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(32 * 5 * 5, 400)
+        self.fc2 = nn.Linear(400, 120)
+        self.fc3 = nn.Linear(120, 84)
+        self.fc4 = nn.Linear(84, 4)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.pool(self.relu(self.conv1(x)))
+        x = self.pool(self.relu(self.conv2(x)))
+        x = self.pool(self.relu(self.conv3(x)))
+        x = x.view(-1, 32 * 5 * 5)
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        x = self.relu(self.fc3(x))
+        x = self.fc4(x)
+        return x
+
+
 # MLP
 #   http://aidiary.hatenablog.com/entry/20180204/1517705138
 class MultiLayerPerceptron(nn.Module):
@@ -105,7 +145,7 @@ with open("..\\label.txt", "r") as list:
         label.append(l)
 
 # モデルのリストア
-model = CNN().to(device)
+model = CNN_64().to(device)
 param = torch.load('model.ckpt') # パラメータの読み込み
 model.load_state_dict(param)
 
