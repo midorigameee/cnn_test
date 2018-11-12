@@ -26,8 +26,36 @@ print("device:", device)
 # Hyper parameters
 NUM_CLASSES = 6
 IMAGE_SIZE = 32
+FACE_SIZE = 32
 BATCH_SIZE = 10
 
+ENTER_KEY = 13 # ENTERキー
+ESC_KEY = 27 # ESCキー
+CASCADE_PATH = "C:\\workspace_py\\Anaconda3\\envs\\py35\\Lib\\site-packages\\cv2\\data\\haarcascade_frontalface_default.xml"
+
+# 分類器の指定
+cascade = cv2.CascadeClassifier(CASCADE_PATH)
+
+
+def detect_maxsize_faces(target_image):
+    target_gray = cv2.cvtColor(target_image, cv2.COLOR_BGR2GRAY)
+    face_list = cascade.detectMultiScale(target_gray, minSize=(50, 50))        
+
+    # 検出した顔に印を付ける
+    f_x = 0
+    f_y = 0
+    f_size = 0
+    for (x, y, w, h) in face_list:
+        color = (0, 0, 225)
+        pen_w = 1
+
+        # 一番大きい検出結果を顔とする
+        if w > f_size:
+            f_x = x
+            f_y = y
+            f_size = w
+
+    return len(face_list), f_x, f_y, f_size
 
 # CNN
 #   https://qiita.com/kazetof/items/6a72926b9f8cd44c218e
@@ -131,20 +159,6 @@ class MultiLayerPerceptron(nn.Module):
         out = self.softmax(out)
         return out
 
-# 対象画像のパスを取得する
-target_dir = "..\\target_images"
-target_list = os.listdir(target_dir)
-target_list.sort()
-
-# 画像をまとめてリスト化
-target = []
-for target_name in target_list:
-    target_path = class_path = os.path.join(target_dir, target_name)
-    target_data = cv2.imread(target_path, cv2.IMREAD_COLOR)
-    target_data = cv2.resize(target_data, (IMAGE_SIZE, IMAGE_SIZE))
-    target_data = np.transpose(target_data, (2, 0, 1))
-    target.append(target_data)
-
 # ラベルの作成
 label = os.listdir("..\\actress\\train")
 
@@ -154,18 +168,58 @@ model = CNN_32  ().to(device)
 param = torch.load('model.ckpt') # パラメータの読み込み
 model.load_state_dict(param)
 
+# カメラをキャプチャする
+print("capture_camera")
+cap = cv2.VideoCapture(0) # 0はカメラのデバイス番号
+
 # ネットワークを推論モードに切り替える
 model.eval()
 with torch.no_grad():   # 推論中は勾配の保存を止める（メモリのリーク？を防ぐため）
-    for idx, x in enumerate(target):
-        x = np.array([x])
-        x = torch.Tensor(x)  # torch.from_numpy(x)だとエラー
-        x = Variable(x)      # dataとgradを持つデータになる
-        x = x.to(device)
+    while True:
+        # retは画像を取得成功フラグ
+        ret, frame = cap.read()
 
-        outputs = model(x)
-        _, predicted = torch.max(outputs.data, 1)
+        # フレームから顔の個数と最大値の座標とサイズを取得
+        f_num, f_x, f_y, f_size = detect_maxsize_faces(frame)
 
-        answer = predicted[0]
+        # 顔があったら認識を開始する
+        if f_num > 0:
+            # フレームから顔を抽出
+            face_image = frame[f_y:f_y+f_size, f_x:f_x+f_size]
 
-        print("{} : {}" .format(target_list[idx], label[answer]))
+            # 顔画像をリサイズ
+            if FACE_SIZE is not None:
+                size = (FACE_SIZE, FACE_SIZE)
+                face_image = cv2.resize(face_image, size)
+
+            # 学習済みモデルに抽出した顔画像を入力
+            x = np.transpose(face_image, (2, 0, 1)) # (縦, 横, ch)を(ch, 縦, 横)
+            x = np.array([x])
+            x = torch.Tensor(x)
+            x = Variable(x)
+            x = x.to(device)
+
+            # 認識結果
+            outputs = model(x)
+            _, predicted = torch.max(outputs.data, 1)
+
+            # 認識結果をフレームに描画する
+            answer = predicted[0]
+            cv2.putText(frame, label[answer], (f_x,f_y), fontFace=cv2.FONT_HERSHEY_SIMPLEX,\
+                fontScale=2, color=(0,0,255), thickness=3)
+
+        # フレームを画面に表示
+        cv2.imshow('recognition', frame)
+
+        # キー入力による処理
+        k = cv2.waitKey(1)
+        if k == ESC_KEY:        # ESCを押したら終了
+            print("Exit...")
+            break
+        elif k == ENTER_KEY:    # ENTERを押したら顔保存
+            print("Save now frame...")
+            cv2.imwrite("face_image.jpg", frame)
+
+    # キャプチャを解放する
+    cap.release()
+    cv2.destroyAllWindows()
