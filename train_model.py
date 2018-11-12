@@ -27,7 +27,7 @@ print("device:", device)
 # Hyper parameters
 NUM_EPOCHS = 100
 NUM_CLASSES = 6
-IMAGE_SIZE = 64
+IMAGE_SIZE = 32
 HIDDEN_SIZE = 512
 BATCH_SIZE = 10
 LEARNING_RATE = 0.001
@@ -36,15 +36,29 @@ LEARNING_RATE = 0.001
 # CNN
 #   https://qiita.com/kazetof/items/6a72926b9f8cd44c218e
 # conv2dの引数は左から，インプットのチャンネルの数，アウトプットのチャンネルの数，カーネルサイズ
-class CNN(nn.Module):
+"""
+input(3, 32, 32)
+conv1(3, 6, 5)   => (6, 28, 28)
+pool1(2, 2)      => (6, 14, 14)
+conv2(6, 16, 5)  => (16, 10, 10)
+pool2(2, 2)      => (16, 5, 5)
+
+16 * 5 * 5 = 400 => 120
+120 => 84
+84 => 4
+
+この構造はLeNetと呼ばれる
+CNNの初期
+"""
+class CNN_32(nn.Module):
     def __init__(self):
-        super(CNN, self).__init__()
+        super(CNN_32, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
         self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 4)
+        self.fc3 = nn.Linear(84, NUM_CLASSES)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -142,8 +156,9 @@ train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle
 test_loader = torch.utils.data.DataLoader(test, batch_size=BATCH_SIZE, shuffle=False)
 
 # モデル、損失関数、最適化関数の定義
-# model = MultiLayerPerceptron(IMAGE_SIZE, HIDDEN_SIZE, NUM_CLASSES).to(device)
-model = CNN_64().to(device)
+# model = MultiLayerPerceptron(IMAGE_SIZE, hidden_size=512, NUM_CLASSES).to(device)
+model = CNN_32().to(device)
+# model = CNN_64().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -181,7 +196,7 @@ with torch.no_grad():   # 推論中は勾配の保存を止める（メモリの
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
 
-    print('Test Accuracy: {} %' .format(100 * correct / total))
+    print('Test Accuracy: {:.3f} %' .format(100 * correct / total))
 
 # Save the model checkpoint
 torch.save(model.state_dict(), 'model.ckpt')

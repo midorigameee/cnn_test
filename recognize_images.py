@@ -24,24 +24,34 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print("device:", device)
 
 # Hyper parameters
-NUM_CLASSES = 4
-IMAGE_SIZE = 64
-HIDDEN_SIZE = 512
+NUM_CLASSES = 6
+IMAGE_SIZE = 32
 BATCH_SIZE = 10
 
 
 # CNN
 #   https://qiita.com/kazetof/items/6a72926b9f8cd44c218e
 # conv2dの引数は左から，インプットのチャンネルの数，アウトプットのチャンネルの数，カーネルサイズ
-class CNN(nn.Module):
+"""
+input(3, 32, 32)
+conv1(3, 6, 5)   => (6, 28, 28)
+pool1(2, 2)      => (6, 14, 14)
+conv2(6, 16, 5)  => (16, 10, 10)
+pool2(2, 2)      => (16, 5, 5)
+
+16 * 5 * 5 = 400 => 120
+120 => 84
+84 => 4
+"""
+class CNN_32(nn.Module):
     def __init__(self):
-        super(CNN, self).__init__()
+        super(CNN_32, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
         self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 4)
+        self.fc3 = nn.Linear(84, NUM_CLASSES)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -55,7 +65,7 @@ class CNN(nn.Module):
 
 
 """
-(3, 64, 64)
+input(3, 64, 64)
 conv1(3, 6, 5)   => (6, 60, 60)
 pool1(2, 2)      => (6, 30, 30)
 conv2(6, 16, 5)  => (16, 26, 26)
@@ -134,14 +144,12 @@ for target_name in target_list:
     target_data = np.transpose(target_data, (2, 0, 1))
     target.append(target_data)
 
-# ラベルのロード
-label = []
-with open("..\\label.txt", "r") as list:
-    for l in list:
-        label.append(l)
+# ラベルの作成
+label = os.listdir("..\\actress\\train")
 
 # モデルのリストア
-model = CNN_64().to(device)
+model = CNN_32  ().to(device)
+# model = CNN_64().to(device)
 param = torch.load('model.ckpt') # パラメータの読み込み
 model.load_state_dict(param)
 
@@ -159,4 +167,4 @@ with torch.no_grad():   # 推論中は勾配の保存を止める（メモリの
 
         answer = predicted[0]
 
-        print("{} : {}" .format(target_list[idx], answer))
+        print("{} : {}" .format(target_list[idx], label[answer]))
