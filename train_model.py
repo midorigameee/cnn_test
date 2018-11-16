@@ -60,6 +60,7 @@ class CNN_32(nn.Module):
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, NUM_CLASSES)
         self.relu = nn.ReLU()
+        self.softmax = nn.LogSoftmax()
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))
@@ -68,6 +69,7 @@ class CNN_32(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)
+        x = self.softmax(x)
         return x
 
 
