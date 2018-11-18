@@ -10,8 +10,6 @@ target_dir
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
-import torchvision
 from torchvision import transforms, datasets
 from torch.autograd import Variable
 
@@ -130,7 +128,8 @@ class CNN_32(nn.Module):
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, NUM_CLASSES)
         self.relu = nn.ReLU()
-        self.softmax = nn.LogSoftmax()
+        # self.softmax = nn.LogSoftmax()
+        self.softmax = nn.Softmax()
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))
@@ -148,7 +147,7 @@ def main():
     label = os.listdir("..\\actress\\train")
 
     # サムネイルの作成
-    thumnail =  make_thumnail("..\\actress\\train")
+    thumnail = make_thumnail("..\\actress\\train")
 
     # モデルのリストア
     model = CNN_32  ().to(device)

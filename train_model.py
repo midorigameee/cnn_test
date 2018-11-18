@@ -12,12 +12,7 @@ pytorchの基本的な流れ
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
-import torchvision
 from torchvision import transforms, datasets
-
-import os
-import numpy as np
 
 
 # Device configuration
@@ -60,7 +55,8 @@ class CNN_32(nn.Module):
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, NUM_CLASSES)
         self.relu = nn.ReLU()
-        self.softmax = nn.LogSoftmax()
+        # self.softmax = nn.LogSoftmax()
+        # self.softmax = nn.functional.softmax()
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))
@@ -69,7 +65,7 @@ class CNN_32(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)
-        x = self.softmax(x)
+        x = nn.functional.softmax(x)
         return x
 
 
@@ -151,7 +147,7 @@ data_transform = transforms.Compose([
 train = datasets.ImageFolder(root='..\\actress\\train',
                              transform=data_transform)
 test = datasets.ImageFolder(root='..\\actress\\test',
-                             transform=data_transform)
+                            transform=data_transform)
 
 # DataLoader化
 train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
@@ -182,7 +178,7 @@ for epoch in range(NUM_EPOCHS):
 
         if (i+1) % 5 == 0:
             print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
-                   .format(epoch+1, NUM_EPOCHS, i+1, total_step, loss.item()))
+                    .format(epoch+1, NUM_EPOCHS, i+1, total_step, loss.item()))
 
 # Test the model
 model.eval()  # ネットワークを推論モードに切り替える
